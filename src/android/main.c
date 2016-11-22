@@ -130,10 +130,73 @@ uint64_t get_time(void) {
     return ((uint64_t)ts.tv_sec * (1000 * 1000 * 1000)) + (uint64_t)ts.tv_nsec;
 }
 
+/* How to generate Java VM Type Signatures
+ * Signature               Java Type
+ *  Z                       boolean
+ *  B                       byte
+ *  C                       char
+ *  S                       short
+ *  I                       int
+ *  J                       long
+ *  F                       float
+ *  D                       double
+ *  L ... ;                 fully-qualified-class
+ *  [ type                  type[]
+ *  ( arg-types ) ret-type  method type
+ */
 
+// TODO: write a macro to generate the common steps
+void copy(int value) {
+    // The order in which you do everything is important... you may be wondering why?
+    // -> https://cmdline.org/i/jni.gif
+
+    debug_error("====================================");
+    debug_error("== Going to copy ANDRIOD          ==");
+    debug_error("====================================");
+    JavaVM  *vm = activity->vm;
+    JNIEnv *env = activity->env;
+    // vars or something
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name    = "NativeThread";
+    lJavaVMAttachArgs.group   = NULL;
+    // Attach to the current Android therad (I think)
+    (*vm)->AttachCurrentThread(vm, &env, &lJavaVMAttachArgs); // error check
+    jobject lNativeActivity     = activity->clazz;
+    jclass  ClassNativeActivity = (*env)->GetObjectClass(env, lNativeActivity);
+
+
+    debug_error("have the methodID getting vars for method");
+    jfieldID fid_clipbrd = (*env)->GetStaticFieldID(env, ClassNativeActivity, "CLIPBOARD_SERVICE", "Ljava/lang/String;");
+    jstring  str_fid     = (*env)->GetStaticObjectField(env, ClassNativeActivity, fid_clipbrd);
+    debug_error("have the vars ;; calling method");
+
+    // get the object to access the system_clipboard
+    debug_error("Going to find system service MethodID");
+    jmethodID mid_system_clip = (*env)->GetMethodID(env, ClassNativeActivity, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+    if (mid_system_clip == NULL) {
+        debug_error("Nothing worked :/");
+        (*vm)->DetachCurrentThread(vm);
+        return;
+    }
+    jobject   obj_clipboard   = (*env)->CallObjectMethod(env, lNativeActivity, mid_system_clip, str_fid);
+    debug_error("have method");
+
+    ALooper *a = ALooper_prepare(0);
+
+    jclass clipboard_Manager = (*env)->FindClass(env, "android/content/ClipboardManager");
+    jmethodID methID_settext = (*env)->GetMethodID(env, clipboard_Manager, "setText", "(Ljava/lang/CharSequence;)");
+
+    // Copy the data from uTox into a Java string
+    jstring string = (*env)->NewStringUTF(env, "This is a test string!");
+    debug_error("calling the thingy");
+    // set the string
+    (*env)->CallVoidMethod(env, obj_clipboard, methID_settext, string);
+    // Finally, detach
+    (*vm)->DetachCurrentThread(vm);
+}
 /* These functions aren't support on Andorid HELP?
  * TODO: fix these! */
-void copy(int value) { /* Unsupported on android */ }
 void paste(void) { /* Unsupported on android */ }
 void openurl(char *str) { /* Unsupported on android */ }
 void openfilesend(void) { /* Unsupported on android */ }
